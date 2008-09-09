@@ -91,7 +91,7 @@ def main(argv = None):
 					 --------4/--62---79/48----3-6/"
 
 	board = SudokuBoard()
-	board.changemarks(makemarksdict(markstring159))
+	board.changemarks(makemarksdict(markstring160))
 	
 	print board
 		

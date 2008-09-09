@@ -6,6 +6,10 @@ class SudokuCell:
 	def __init__(self, marks = range(1,10), dirty = False):
 		self.marks = Set(marks)
 		self.dirty = dirty
+		self.row = None
+		self.column = None
+		self.square = None
+		self.topcontainers = []
 		
 	def __str__(self):
 		return "SudokuCell(" + repr(list(self.marks)) + ")"
@@ -42,6 +46,7 @@ class SudokuCellTopContainer(SudokuCellContainer):
 		
 		
 	def partitioncelllist(self, celllist, partitions):
+		# if celllist is length 1 or less, no need to partition further
 		if len(celllist) <= 1:
 			partitions.append(celllist)
 			return
@@ -71,11 +76,13 @@ class SudokuCellTopContainer(SudokuCellContainer):
 				break
 		else:
 			# no proper subblocks found
+			# put this block back in the list, exit
 			partitions.append(celllist)
 			return
 
 		# print "Subblock:\n\t", subblock, subblockmarks
 
+		# put found subblock into partition list
 		partitions.append(subblock)
 		
 		# collect cells not in this subblock
@@ -136,12 +143,13 @@ class SudokuBoard:
 				self.cells[row].append(SudokuCell())
 				
 		# set up row structures
-		self.rows = self.cells[:]
 		self.rowobjs = []
 		for row in self.cells:
-			self.rowobjs.append(SudokuCellRow(self, row, self.cells.index(row)))
+			rowobj = SudokuCellRow(self, row[:], self.cells.index(row))
+			self.rowobjs.append(rowobj)
+			for cell in row:
+				cell.row = rowobj
 		
-		self.columns = []
 		self.columnobjs = []
 		
 		for index in range(9):
@@ -149,10 +157,11 @@ class SudokuBoard:
 			for row in self.cells:
 				column.append(row[index])
 			
-			self.columns.append(column)
-			self.columnobjs.append(SudokuCellColumn(self, column, index))
+			columnobj = SudokuCellColumn(self, column, index)
+			self.columnobjs.append(columnobj)
+			for cell in column:
+				cell.column = columnobj
 		
-		self.squares = []
 		self.squareobjs = []
 		
 		for index in range(9):
@@ -164,11 +173,12 @@ class SudokuBoard:
 				for j in range(3):
 					cell = self.cells[3 * rowindex + i][3 * colindex + j]
 					square.append(cell)
-
-			self.squares.append(square)
-			self.squareobjs.append(SudokuCellSquare(self, square, index))
+					
+			squareobj = SudokuCellSquare(self, square, index)
+			self.squareobjs.append(squareobj)
+			for cell in square:
+				cell.square = squareobj
 			
-		self.allstructures = self.rows + self.columns + self.squares
 		self.allstructureobjs = self.rowobjs + self.columnobjs + self.squareobjs
 		
 		
@@ -223,7 +233,7 @@ class SudokuBoard:
 		while dirtycells:
 			cell = dirtycells.pop(0)
 
-			cellstructures = [s for s in self.allstructureobjs if cell in s.cells]
+			cellstructures = [cell.row, cell.column, cell.square]
 			for struct in cellstructures:
 				if struct not in dirtystructures:
 					dirtystructures.append(struct)
@@ -273,91 +283,3 @@ def allsubsets(l):
 	subsets.extend([sset + [last] for sset in restsubsets])
 	
 	return subsets
-	
-	
-def partitioncellmarks(cells):
-	"Breaks marks for a list of cells into subblocks. Changes cells in place."
-	
-	# generate all proper subsets of cell list
-	cellsubsets = propersubsets(cells)
-
-	# sort by subset length
-	lencmp = lambda a,b: cmp(len(a), len(b))
-	cellsubsets.sort(cmp=lencmp)
-	
-	# storage for block + marks, if we find one
-	subblock = None
-	subblockmarks = None
-	
-	# look through subsets for a subblock (number of marks = number of cells)
-	# since cellsubsets sorted by length, will find a minimal one
-	for sset in cellsubsets:
-		ssetmarks = Set()
-		for cell in sset:
-			ssetmarks = ssetmarks.union(cell.marks)
-			
-		# if we find one, save it off, break the loop
-		if (len(ssetmarks) == len(sset)):
-			subblock = sset
-			subblockmarks = ssetmarks
-			break
-	else:
-		# no proper subblocks found
-		return
-	
-	# print "Subblock:\n\t", subblock, subblockmarks
-		
-	# collect cells not in this subblock
-	# should never be empty
-	outercells = [cell for cell in cells if cell not in subblock]
-
-	# print "Cells outside block:\n\t", outercells
-	
-	if outercells:
-		# remove marks in block from the marks of the other cells
-		# mark the cell as dirty if we changed it
-		for cell in outercells:
-			if cell.marks.intersection(subblockmarks):
-				cell.marks = cell.marks.difference(subblockmarks)
-				cell.dirty = True
-
-		# print "Cells outside block after subtraction:\n\t", outercells
-		
-		# check for new subblocks in the outer cells
-		partitioncellmarks(outercells)
-	
-	# print "Cells after partition:\n\t", cells
-	return
-	
-def partitionboardstructures(board):
-	dirtycells = [cell for r in board.cells for cell in r if cell.dirty]
-	dirtystructures = []
-	adddirtystructures(board, dirtycells, dirtystructures)
-	
-	while dirtystructures:
-		structure = dirtystructures.pop(0)
-		#print "before:", structure
-		
-		#structureobject = SudokuCellTopContainer(board, structure)
-		structure.partitionallcells()
-		
-		print structure.cellpartitions
-		
-		# partitioncellmarks(structure)
-		#print "after: ", structure
-		newdirties = [cell for cell in structure.cells if cell.dirty]
-		#print "new dirties:", newdirties, "\n"
-		adddirtystructures(board, newdirties, dirtystructures)
-		print board
-		
-	
-def adddirtystructures(board, dirtycells, dirtystructures):
-	while dirtycells:
-		cell = dirtycells.pop(0)
-
-		cellstructures = [s for s in board.allstructureobjs if cell in s.cells]
-		for struct in cellstructures:
-			if struct not in dirtystructures:
-				dirtystructures.append(struct)
-				
-		cell.dirty = False
