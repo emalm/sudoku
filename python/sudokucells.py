@@ -42,7 +42,7 @@ class SudokuCellTopContainer(SudokuCellContainer):
 		
 		
 	def partitioncelllist(self, celllist, partitions):
-		if len(celllist) <= 2:
+		if len(celllist) <= 1:
 			partitions.append(celllist)
 			return
 			
@@ -197,6 +197,40 @@ class SudokuBoard:
 			if dirty:
 				self.cells[ri][ci].dirty = True
 	
+	def partitionboardstructures(self):
+		dirtycells = [cell for r in self.cells for cell in r if cell.dirty]
+		dirtystructures = []
+		self.adddirtystructures(dirtycells, dirtystructures)
+
+		while dirtystructures:
+			structure = dirtystructures.pop(0)
+			#print "before:", structure
+
+			#structureobject = SudokuCellTopContainer(board, structure)
+			structure.partitionallcells()
+
+			print structure.cellpartitions
+
+			# partitioncellmarks(structure)
+			#print "after: ", structure
+			newdirties = [cell for cell in structure.cells if cell.dirty]
+			#print "new dirties:", newdirties, "\n"
+			self.adddirtystructures(newdirties, dirtystructures)
+			print self
+
+
+	def adddirtystructures(self, dirtycells, dirtystructures):
+		while dirtycells:
+			cell = dirtycells.pop(0)
+
+			cellstructures = [s for s in self.allstructureobjs if cell in s.cells]
+			for struct in cellstructures:
+				if struct not in dirtystructures:
+					dirtystructures.append(struct)
+
+			cell.dirty = False
+	
+	
 def makemarksdict(markstring):
 	marklist = list(markstring)
 	markdict = {}
@@ -304,14 +338,14 @@ def partitionboardstructures(board):
 		structure = dirtystructures.pop(0)
 		#print "before:", structure
 		
-		structureobject = SudokuCellTopContainer(board, structure)
-		structureobject.partitionallcells()
+		#structureobject = SudokuCellTopContainer(board, structure)
+		structure.partitionallcells()
 		
-		print structureobject.cellpartitions
+		print structure.cellpartitions
 		
 		# partitioncellmarks(structure)
 		#print "after: ", structure
-		newdirties = [cell for cell in structure if cell.dirty]
+		newdirties = [cell for cell in structure.cells if cell.dirty]
 		#print "new dirties:", newdirties, "\n"
 		adddirtystructures(board, newdirties, dirtystructures)
 		print board
@@ -321,7 +355,7 @@ def adddirtystructures(board, dirtycells, dirtystructures):
 	while dirtycells:
 		cell = dirtycells.pop(0)
 
-		cellstructures = [s for s in board.allstructures if cell in s]
+		cellstructures = [s for s in board.allstructureobjs if cell in s.cells]
 		for struct in cellstructures:
 			if struct not in dirtystructures:
 				dirtystructures.append(struct)
