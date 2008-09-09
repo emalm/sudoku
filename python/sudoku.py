@@ -90,12 +90,16 @@ def main(argv = None):
 					 6----4-5-/--4-21--3/-7--6----/\
 					 --------4/--62---79/48----3-6/"
 
+	markstring161 = "-------96/-75-3----/9-2------/\
+					 -----837-/--3-4--5-/--6--1---/\
+					 --428--1-/-----4--2/-1-5--9--/"
+
 	board = SudokuBoard()
-	board.changemarks(makemarksdict(markstring160))
+	board.changemarks(makemarksdict(markstring161))
 	
 	print board
 		
-	board.partitionboardstructures()
+	board.partitiontopstructures()
 
 	print board
 	

@@ -3,47 +3,146 @@
 from sets import Set
 
 class SudokuCell:
+	"Stores single sudoku cell"
 	def __init__(self, marks = range(1,10), dirty = False):
 		self.marks = Set(marks)
 		self.dirty = dirty
-		self.row = None
-		self.column = None
-		self.square = None
-		self.topcontainers = []
+		self.topcontainers = {}
 		
-	def __str__(self):
-		return "SudokuCell(" + repr(list(self.marks)) + ")"
-
 	def __repr__(self):
 		return "SudokuCell(" + repr(list(self.marks)) + ", " \
 							 + repr(self.dirty) + ")"
-							
+
+	def prettyprint(self):
+		"More readable cell representation, as '(*marks)'"
+		pprint = "("
+		if self.dirty:
+			pprint += "*"
+			
+		for digit in list(self.marks):
+			pprint += str(digit)
+			
+		pprint += ")"
+		return pprint
+
 	def setmarks(self, marks):
+		"Redefine cell marks from a list"
 		self.marks = Set(marks)
 
 class SudokuCellContainer:
+	"Generic container class for SudokuCells"
 	def __init__(self, parent, cells = []):
 		self.cells = cells
 		self.parent = parent
 		
 class SudokuCellTopContainer(SudokuCellContainer):
-	def __init__(self, parent, cells = []):
-		self.cells = cells
+	def __init__(self, parent, cells = [], index = 0):
+		SudokuCellContainer.__init__(self, parent, cells)
 		self.cellpartitions = [self.cells[:]]
-		self.parent = parent
+		self.dirty = False
+		self.index = index
+		self.substructures = {}
+		
+	def prettyprint(self):
+		pprint = "[ "
+		for block in self.cellpartitions:
+			pprint += "["
+			for cell in block:
+				pprint += cell.prettyprint()
+			pprint += "] "
+			
+		pprint += "]"
+		return pprint
+		
+	def partitioncellswithsubblocks(self):
+		self.includeexcludesubcontainers()
+		self.adjustcellsfromsubcontainers()
+		self.partitionallcells()
+		self.updatesubstructuresfromcells()
+		self.includeexcludesubcontainers()
+		self.dirtystructuresfromdirtysubcontainers()
 		
 	
 	def partitionallcells(self):
 		newpartitions = []
-		
+
 		while self.cellpartitions:
 			nextlist = self.cellpartitions.pop(0)
 			self.partitioncelllist(nextlist, newpartitions)
-			
+
 		self.cellpartitions = newpartitions
-		
+
 		return
+
+	def includeexcludesubcontainers(self):
+		for key in self.substructures.keys():
+			subconset = self.substructures[key]
+			length = len(subconset)
+			for i in range(length):
+				subcontainer = subconset[i]
+				othersubcons = subconset[:i] + subconset[i+1:]
+				
+				# exclude marks in other subcons if included in
+				for other in othersubcons:
+					# this subcon has new info for other subcon
+					if subcontainer.included.difference(other.excluded):
+						other.excluded |= subcontainer.included
+						other.dirty = True
+						print "Added subcontainer " + other.prettyprint() + " to dirty list"
+						
+				allexcluded = Set(range(1,10))
+				for other in othersubcons:
+					allexcluded &= other.excluded
+					
+				if allexcluded.difference(subcontainer.included):
+					subcontainer.included |= allexcluded
+					subcontainer.dirty = True
+					print "Added subcontainer " + subcontainer.prettyprint() + " to dirty list"
 		
+	def adjustcellsfromsubcontainers(self):
+		dirtysubcons = [subcon for key in self.substructures.keys() 
+							   for subcon in self.substructures[key] 
+							   if subcon.dirty]
+		for subcon in dirtysubcons:
+			for cell in subcon.cells:
+				if cell.marks.intersection(subcon.excluded):
+					cell.marks -= subcon.excluded
+					cell.dirty = True
+					
+	def dirtystructuresfromdirtysubcontainers(self):
+		dirtysubcons = [subcon for key in self.substructures.keys() 
+							   for subcon in self.substructures[key] 
+							   if subcon.dirty]
+		for subcon in dirtysubcons:
+			for key in subcon.topcontainers.keys():
+				subcon.topcontainers[key].dirty = True
+				
+			subcon.dirty = False
+			
+	def updatesubstructuresfromcells(self):
+		allsubcons = [subcon for key in self.substructures.keys() 
+							 for subcon in self.substructures[key]]
+		for subcon in allsubcons:
+			newexcludes = Set(range(1,10))
+			newincludes = Set([])
+			for cell in subcon.cells:
+				if len(cell.marks) == 1:
+					newincludes |= cell.marks
+				newexcludes -= cell.marks
+				
+			# update subcon's excluded lists
+			if newexcludes.difference(subcon.excluded):
+				subcon.excluded |= newexcludes
+				subcon.dirty = True
+				print "Added subcontainer " + subcon.prettyprint() + " to dirty list"
+
+			# update subcon's included list
+			if newincludes.difference(subcon.included):
+				subcon.included |= newincludes
+				subcon.dirty = True
+				print "Added subcontainer " + subcon.prettyprint() + " to dirty list"
+				
+			
 		
 	def partitioncelllist(self, celllist, partitions):
 		# if celllist is length 1 or less, no need to partition further
@@ -111,26 +210,69 @@ class SudokuCellTopContainer(SudokuCellContainer):
 	
 class SudokuCellRow(SudokuCellTopContainer):
 	def __init__(self, parent, cells = [], index = 0):
-		SudokuCellTopContainer.__init__(self, parent, cells)
-		self.rowindex = index
-	
+		SudokuCellTopContainer.__init__(self, parent, cells, index)
+		self.substructures["subrows"] = []
+		
+	def partitionallcells(self):
+		print "Processing Row", self.index
+		SudokuCellTopContainer.partitionallcells(self)
+		print "Subrows:", [row.prettyprint() for row in self.substructures["subrows"]]
+		
 class SudokuCellColumn(SudokuCellTopContainer):
 	def __init__(self, parent, cells = [], index = 0):
-		SudokuCellTopContainer.__init__(self, parent, cells)
-		self.columnindex = index
+		SudokuCellTopContainer.__init__(self, parent, cells, index)
+		self.substructures["subcolumns"] = []
 	
-class SudokuCellSquare(SudokuCellTopContainer):
-	def __init__(self, parent, cells = [], index = (0,0)):
-		SudokuCellTopContainer.__init__(self, parent, cells)
-		self.squareindex = index
+	def partitionallcells(self):
+		print "Processing Column", self.index
+		SudokuCellTopContainer.partitionallcells(self)
+		print "Subcolumns:", [col.prettyprint() for col in self.substructures["subcolumns"]]
 
+class SudokuCellSquare(SudokuCellTopContainer):
+	def __init__(self, parent, cells = [], index = 0):
+		SudokuCellTopContainer.__init__(self, parent, cells, index)
+		self.substructures["subrows"] = []
+		self.substructures["subcolumns"] = []
+
+	def partitionallcells(self):
+		print "Processing Square", self.index
+		SudokuCellTopContainer.partitionallcells(self)
+		print "Subrows:", [row.prettyprint() for row in self.substructures["subrows"]]
+		print "Subcolumns:", [col.prettyprint() for col in self.substructures["subcolumns"]]
 
 class SudokuCellSubContainer(SudokuCellContainer):
-	def __init__(self, parent):
-		self.cells = []
-		self.parent = parent
-		self.included = []
-		self.excluded = []
+	def __init__(self, parent, cells = [], index = 0):
+		SudokuCellContainer.__init__(self, parent, cells)
+		self.topcontainers = {}
+		self.included = Set([])
+		self.excluded = Set([])
+		self.index = index
+		self.dirty = False
+		
+	def prettyprint(self):
+		pprint = "[" + str(self.index)
+		
+		if self.dirty:
+			pprint += "*"
+			
+		pprint += ": "
+			
+		for cell in self.cells:
+			pprint += cell.prettyprint()
+			
+		pprint += " i" + "".join(map(str,list(self.included)))
+		pprint += " e" + "".join(map(str,list(self.excluded)))
+		pprint += " ]"
+		return pprint
+
+class SudokuCellSubrow(SudokuCellSubContainer):
+	def __init__(self, parent, cells = [], index = 0):
+		SudokuCellSubContainer.__init__(self, parent, cells, index)
+		
+class SudokuCellSubcolumn(SudokuCellSubContainer):
+	def __init__(self, parent, cells = [], index = 0):
+		SudokuCellSubContainer.__init__(self, parent, cells, index)
+
 
 class SudokuBoard:
 	def __init__(self):
@@ -142,14 +284,15 @@ class SudokuBoard:
 			for col in range(9):
 				self.cells[row].append(SudokuCell())
 				
-		# set up row structures
+		# set up row objects
 		self.rowobjs = []
 		for row in self.cells:
 			rowobj = SudokuCellRow(self, row[:], self.cells.index(row))
 			self.rowobjs.append(rowobj)
 			for cell in row:
-				cell.row = rowobj
+				cell.topcontainers["row"] = rowobj
 		
+		# set up column objects
 		self.columnobjs = []
 		
 		for index in range(9):
@@ -160,8 +303,9 @@ class SudokuBoard:
 			columnobj = SudokuCellColumn(self, column, index)
 			self.columnobjs.append(columnobj)
 			for cell in column:
-				cell.column = columnobj
+				cell.topcontainers["column"] = columnobj
 		
+		# set up square objects
 		self.squareobjs = []
 		
 		for index in range(9):
@@ -177,12 +321,56 @@ class SudokuBoard:
 			squareobj = SudokuCellSquare(self, square, index)
 			self.squareobjs.append(squareobj)
 			for cell in square:
-				cell.square = squareobj
+				cell.topcontainers["square"] = squareobj
 			
 		self.allstructureobjs = self.rowobjs + self.columnobjs + self.squareobjs
 		
+		# set up subrow objects
 		
+		self.subrowobjs = []
+		
+		for index in range(27):
+			subrow = []
+			rowindex = index / 3
+			colindex = index % 3
+			
+			for i in range(3):
+				cell = self.cells[rowindex][3 * colindex + i]
+				subrow.append(cell)
+				
+			subrowobj = SudokuCellSubrow(self, subrow, index);
+			self.subrowobjs.append(subrowobj)
+			
+			self.rowobjs[rowindex].substructures["subrows"].append(subrowobj)
+			subrowobj.topcontainers["row"] = self.rowobjs[rowindex]
+			
+			squareindex = (rowindex / 3) * 3 + colindex
+			self.squareobjs[squareindex].substructures["subrows"].append(subrowobj)
+			subrowobj.topcontainers["square"] = self.squareobjs[squareindex]
+		
+		# set up subcolumn objects
 					
+		self.subcolumnobjs = []
+		
+		for index in range(27):
+			subcolumn = []
+			rowindex = index / 9
+			colindex = index % 9
+			
+			for i in range(3):
+				cell = self.cells[3 * rowindex + i][colindex]
+				subcolumn.append(cell)
+				
+			subcolumnobj = SudokuCellSubcolumn(self, subcolumn, index);
+			self.subcolumnobjs.append(subcolumnobj)
+			
+			self.columnobjs[colindex].substructures["subcolumns"].append(subcolumnobj)
+			subcolumnobj.topcontainers["column"] = self.columnobjs[colindex]
+			
+			squareindex = rowindex * 3 + colindex / 3
+			self.squareobjs[squareindex].substructures["subcolumns"].append(subcolumnobj)
+			subcolumnobj.topcontainers["square"] = self.squareobjs[squareindex]
+		
 	def __str__(self):		
 		boardstring = ""
 		for row in self.cells:
@@ -207,39 +395,46 @@ class SudokuBoard:
 			if dirty:
 				self.cells[ri][ci].dirty = True
 	
-	def partitionboardstructures(self):
+	def partitiontopstructures(self):
 		dirtycells = [cell for r in self.cells for cell in r if cell.dirty]
 		dirtystructures = []
-		self.adddirtystructures(dirtycells, dirtystructures)
+		self.dirtycellstodirtystructures(dirtycells)
+		self.adddirtystructures(dirtystructures)
 
 		while dirtystructures:
 			structure = dirtystructures.pop(0)
-			#print "before:", structure
 
-			#structureobject = SudokuCellTopContainer(board, structure)
-			structure.partitionallcells()
+			structure.partitioncellswithsubblocks()
 
-			print structure.cellpartitions
+			print structure.prettyprint()
 
-			# partitioncellmarks(structure)
-			#print "after: ", structure
 			newdirties = [cell for cell in structure.cells if cell.dirty]
-			#print "new dirties:", newdirties, "\n"
-			self.adddirtystructures(newdirties, dirtystructures)
+
+			self.dirtycellstodirtystructures(newdirties)
+			
+			# just processed this structure, so don't re-add to dirty list
+			structure.dirty = False
+			
+			self.adddirtystructures(dirtystructures)
 			print self
 
-
-	def adddirtystructures(self, dirtycells, dirtystructures):
+	def dirtycellstodirtystructures(self, dirtycells):
 		while dirtycells:
 			cell = dirtycells.pop(0)
-
-			cellstructures = [cell.row, cell.column, cell.square]
-			for struct in cellstructures:
-				if struct not in dirtystructures:
-					dirtystructures.append(struct)
-
+			
+			for key in cell.topcontainers.keys():
+				cell.topcontainers[key].dirty = True
+				
 			cell.dirty = False
-	
+				
+	def adddirtystructures(self, dirtystructures):
+		for topstruct in self.allstructureobjs:
+			if topstruct.dirty and topstruct not in dirtystructures:
+				dirtystructures.append(topstruct)
+				topstruct.dirty = False
+				print "Added top structure " + \
+				      str(self.allstructureobjs.index(topstruct)) + \
+					  " to dirty list"
 	
 def makemarksdict(markstring):
 	marklist = list(markstring)
