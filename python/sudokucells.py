@@ -28,6 +28,17 @@ class SudokuCell:
 	def setmarks(self, marks):
 		"Redefine cell marks from a list"
 		self.marks = Set(marks)
+		
+	def updatemarks(self, newmarks):
+		pass
+			
+			
+	def removemarks(self, excludedmarks):
+		"Update cell marks from a set; mark as dirty if marks changed"
+		# check whether new marks intersect current marks
+		if self.marks & excludedmarks:
+			self.marks -= excludedmarks
+			self.dirty = True
 
 class SudokuCellContainer:
 	"Generic container class for SudokuCells"
@@ -44,36 +55,36 @@ class SudokuCellTopContainer(SudokuCellContainer):
 		self.substructures = {}
 		
 	def prettyprint(self):
+		"More readable representation of top-level container."
 		pprint = "[ "
 		for block in self.cellpartitions:
 			pprint += "["
-			for cell in block:
-				pprint += cell.prettyprint()
+			pprint += "".join([cell.prettyprint() for cell in block])
 			pprint += "] "
 			
 		pprint += "]"
 		return pprint
 		
 	def partitioncellswithsubblocks(self):
+		# update included/excluded status of subcontainer collections
 		self.includeexcludesubcontainers()
+		
+		# adjust cells to reflect changes in subcontainers
 		self.adjustcellsfromsubcontainers()
+		
+		# partition cells into blocks
 		self.partitionallcells()
+		
+		# update subcontainer excluded sets based on marks
 		self.updatesubstructuresfromcells()
+		
+		# update included/excluded status again
 		self.includeexcludesubcontainers()
+		
+		# translate dirtied subcontainers into dirty structures
 		self.dirtystructuresfromdirtysubcontainers()
 		
 	
-	def partitionallcells(self):
-		newpartitions = []
-
-		while self.cellpartitions:
-			nextlist = self.cellpartitions.pop(0)
-			self.partitioncelllist(nextlist, newpartitions)
-
-		self.cellpartitions = newpartitions
-
-		return
-
 	def includeexcludesubcontainers(self):
 		for key in self.substructures.keys():
 			subconset = self.substructures[key]
@@ -105,9 +116,7 @@ class SudokuCellTopContainer(SudokuCellContainer):
 							   if subcon.dirty]
 		for subcon in dirtysubcons:
 			for cell in subcon.cells:
-				if cell.marks.intersection(subcon.excluded):
-					cell.marks -= subcon.excluded
-					cell.dirty = True
+				cell.removemarks(subcon.excluded)
 					
 	def dirtystructuresfromdirtysubcontainers(self):
 		dirtysubcons = [subcon for key in self.substructures.keys() 
@@ -144,6 +153,17 @@ class SudokuCellTopContainer(SudokuCellContainer):
 				
 			
 		
+	def partitionallcells(self):
+		newpartitions = []
+
+		while self.cellpartitions:
+			nextlist = self.cellpartitions.pop(0)
+			self.partitioncelllist(nextlist, newpartitions)
+
+		self.cellpartitions = newpartitions
+
+		return
+
 	def partitioncelllist(self, celllist, partitions):
 		# if celllist is length 1 or less, no need to partition further
 		if len(celllist) <= 1:
@@ -194,9 +214,7 @@ class SudokuCellTopContainer(SudokuCellContainer):
 			# remove marks in block from the marks of the other cells
 			# mark the cell as dirty if we changed it
 			for cell in outercells:
-				if cell.marks.intersection(subblockmarks):
-					cell.marks = cell.marks.difference(subblockmarks)
-					cell.dirty = True
+				cell.removemarks(subblockmarks)
 
 			# print "Cells outside block after subtraction:\n\t", outercells
 
@@ -389,11 +407,56 @@ class SudokuBoard:
 		boardstring += "+" + "---+" * 3 + "\n"
 		return boardstring
 		
+	def prettyprint(self):
+		pprint = ""
+		
+		for row in self.cells:
+			if self.cells.index(row) % 3:
+				pprint += "|" + "+---+---+---+" * 3 + "|"
+			else:
+				pprint += "#" * 41
+				
+			pprint += "\n"
+			
+			pprintrows = ["||","||","||"]
+			for cell in row:
+				index = row.index(cell)
+				for i in range(3):
+					for j in range(3):
+						digit = 3 * i + j + 1
+						if digit in cell.marks:
+							pprintrows[i] += str(digit)
+						else:
+							pprintrows[i] += " "
+							
+				endchar = ""
+				if (index + 1) % 3:
+					endchar = "|"
+				else:
+					endchar = "||"
+					
+				pprintrows = [prow + endchar for prow in pprintrows]
+				
+			pprintrows = [prow + "\n" for prow in pprintrows]
+			
+			pprint += "".join(pprintrows)
+			
+		pprint += "#" * 41 + "\n"
+		return pprint
+		
 	def changemarks(self, marksdict, dirty = True):
 		for (ri, ci) in marksdict.keys():
 			self.cells[ri][ci].marks = Set(marksdict[(ri, ci)])
 			if dirty:
 				self.cells[ri][ci].dirty = True
+				
+	def marks(self):
+		marksdict = {}
+		for i in range(9):
+			for j in range(9):
+				marksdict[(i, j)] = list(self.cells[i][j].marks)
+				
+		return marksdict
 	
 	def partitiontopstructures(self):
 		dirtycells = [cell for r in self.cells for cell in r if cell.dirty]
@@ -416,7 +479,7 @@ class SudokuBoard:
 			structure.dirty = False
 			
 			self.adddirtystructures(dirtystructures)
-			print self
+			print self.prettyprint()
 
 	def dirtycellstodirtystructures(self, dirtycells):
 		while dirtycells:
@@ -436,6 +499,15 @@ class SudokuBoard:
 				      str(self.allstructureobjs.index(topstruct)) + \
 					  " to dirty list"
 	
+	def partitionrowsbydigits(self):
+		for i in range(1,10):
+			self.partitionrowsbydigit(i)
+			
+	def partitionrowsbydigit(self, digit):
+		digitmarks = [ [digit in cell.marks for cell in row] for row in self.cells]
+		print digitmarks
+		
+		
 def makemarksdict(markstring):
 	marklist = list(markstring)
 	markdict = {}
