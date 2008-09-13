@@ -66,6 +66,9 @@ class SudokuCellTopContainer(SudokuCellContainer):
 		return pprint
 		
 	def partitioncellswithsubblocks(self):
+		
+		print self.prettyprint()
+		
 		# update included/excluded status of subcontainer collections
 		self.includeexcludesubcontainers()
 		
@@ -93,22 +96,16 @@ class SudokuCellTopContainer(SudokuCellContainer):
 				subcontainer = subconset[i]
 				othersubcons = subconset[:i] + subconset[i+1:]
 				
-				# exclude marks in other subcons if included in
+				# exclude marks in other subcons if included in this subcon
 				for other in othersubcons:
-					# this subcon has new info for other subcon
-					if subcontainer.included.difference(other.excluded):
-						other.excluded |= subcontainer.included
-						other.dirty = True
-						print "Added subcontainer " + other.prettyprint() + " to dirty list"
+					other.addtoexcluded(subcontainer.included)
 						
+				# include marks in this subcon if excluded in all other subcons
 				allexcluded = Set(range(1,10))
 				for other in othersubcons:
 					allexcluded &= other.excluded
 					
-				if allexcluded.difference(subcontainer.included):
-					subcontainer.included |= allexcluded
-					subcontainer.dirty = True
-					print "Added subcontainer " + subcontainer.prettyprint() + " to dirty list"
+				subcontainer.addtoincluded(allexcluded)
 		
 	def adjustcellsfromsubcontainers(self):
 		dirtysubcons = [subcon for key in self.substructures.keys() 
@@ -140,18 +137,10 @@ class SudokuCellTopContainer(SudokuCellContainer):
 				newexcludes -= cell.marks
 				
 			# update subcon's excluded lists
-			if newexcludes.difference(subcon.excluded):
-				subcon.excluded |= newexcludes
-				subcon.dirty = True
-				print "Added subcontainer " + subcon.prettyprint() + " to dirty list"
+			subcon.addtoexcluded(newexcludes)
 
 			# update subcon's included list
-			if newincludes.difference(subcon.included):
-				subcon.included |= newincludes
-				subcon.dirty = True
-				print "Added subcontainer " + subcon.prettyprint() + " to dirty list"
-				
-			
+			subcon.addtoincluded(newincludes)
 		
 	def partitionallcells(self):
 		newpartitions = []
@@ -199,8 +188,6 @@ class SudokuCellTopContainer(SudokuCellContainer):
 			partitions.append(celllist)
 			return
 
-		# print "Subblock:\n\t", subblock, subblockmarks
-
 		# put found subblock into partition list
 		partitions.append(subblock)
 		
@@ -208,32 +195,25 @@ class SudokuCellTopContainer(SudokuCellContainer):
 		# should never be empty
 		outercells = [cell for cell in celllist if cell not in subblock]
 
-		# print "Cells outside block:\n\t", outercells
-
 		if outercells:
 			# remove marks in block from the marks of the other cells
 			# mark the cell as dirty if we changed it
 			for cell in outercells:
 				cell.removemarks(subblockmarks)
 
-			# print "Cells outside block after subtraction:\n\t", outercells
-
 			# check for new subblocks in the outer cells
 			self.partitioncelllist(outercells, partitions)
 
-		# print "Cells after partition:\n\t", cells
 		return
-		
-	
 	
 class SudokuCellRow(SudokuCellTopContainer):
 	def __init__(self, parent, cells = [], index = 0):
 		SudokuCellTopContainer.__init__(self, parent, cells, index)
 		self.substructures["subrows"] = []
 		
-	def partitionallcells(self):
+	def partitioncellswithsubblocks(self):
 		print "Processing Row", self.index
-		SudokuCellTopContainer.partitionallcells(self)
+		SudokuCellTopContainer.partitioncellswithsubblocks(self)
 		print "Subrows:", [row.prettyprint() for row in self.substructures["subrows"]]
 		
 class SudokuCellColumn(SudokuCellTopContainer):
@@ -241,9 +221,9 @@ class SudokuCellColumn(SudokuCellTopContainer):
 		SudokuCellTopContainer.__init__(self, parent, cells, index)
 		self.substructures["subcolumns"] = []
 	
-	def partitionallcells(self):
+	def partitioncellswithsubblocks(self):
 		print "Processing Column", self.index
-		SudokuCellTopContainer.partitionallcells(self)
+		SudokuCellTopContainer.partitioncellswithsubblocks(self)
 		print "Subcolumns:", [col.prettyprint() for col in self.substructures["subcolumns"]]
 
 class SudokuCellSquare(SudokuCellTopContainer):
@@ -252,9 +232,9 @@ class SudokuCellSquare(SudokuCellTopContainer):
 		self.substructures["subrows"] = []
 		self.substructures["subcolumns"] = []
 
-	def partitionallcells(self):
+	def partitioncellswithsubblocks(self):
 		print "Processing Square", self.index
-		SudokuCellTopContainer.partitionallcells(self)
+		SudokuCellTopContainer.partitioncellswithsubblocks(self)
 		print "Subrows:", [row.prettyprint() for row in self.substructures["subrows"]]
 		print "Subcolumns:", [col.prettyprint() for col in self.substructures["subcolumns"]]
 
@@ -282,6 +262,18 @@ class SudokuCellSubContainer(SudokuCellContainer):
 		pprint += " e" + "".join(map(str,list(self.excluded)))
 		pprint += " ]"
 		return pprint
+		
+	def addtoincluded(self, newdigits):
+		if newdigits - self.included:
+			self.included |= newdigits
+			self.dirty = True
+			print "Changed includeds for subcontainer " + self.prettyprint()
+
+	def addtoexcluded(self, newdigits):
+		if newdigits - self.excluded:
+			self.excluded |= newdigits
+			self.dirty = True
+			print "Changed excludeds for subcontainer " + self.prettyprint()
 
 class SudokuCellSubrow(SudokuCellSubContainer):
 	def __init__(self, parent, cells = [], index = 0):
@@ -388,6 +380,11 @@ class SudokuBoard:
 			squareindex = rowindex * 3 + colindex / 3
 			self.squareobjs[squareindex].substructures["subcolumns"].append(subcolumnobj)
 			subcolumnobj.topcontainers["square"] = self.squareobjs[squareindex]
+			
+		# set up row partitions by digit
+		# each one originally consists of a single list containing a copy
+		# of the list of row objects
+		self.rowpartitions = [[self.rowobjs[:]] for digit in range(9)]
 		
 	def __str__(self):		
 		boardstring = ""
@@ -444,6 +441,17 @@ class SudokuBoard:
 		pprint += "#" * 41 + "\n"
 		return pprint
 		
+	def solved(self):
+		"""docstring for solved"""
+		marks = self.marks()
+		solvedq = True
+		for key in marks.keys():
+			if len(marks[key]) > 1:
+				solvedq = False
+				break
+				
+		return solvedq
+		
 	def changemarks(self, marksdict, dirty = True):
 		for (ri, ci) in marksdict.keys():
 			self.cells[ri][ci].marks = Set(marksdict[(ri, ci)])
@@ -479,7 +487,8 @@ class SudokuBoard:
 			structure.dirty = False
 			
 			self.adddirtystructures(dirtystructures)
-			print self.prettyprint()
+			# print self.prettyprint()
+			print "\n"
 
 	def dirtycellstodirtystructures(self, dirtycells):
 		while dirtycells:
@@ -504,9 +513,86 @@ class SudokuBoard:
 			self.partitionrowsbydigit(i)
 			
 	def partitionrowsbydigit(self, digit):
-		digitmarks = [ [digit in cell.marks for cell in row] for row in self.cells]
-		print digitmarks
+		newpartitions = []
+		digitindex = digit - 1
+
+		while self.rowpartitions[digitindex]:
+			nextlist = self.rowpartitions[digitindex].pop(0)
+			self.partitionrowlistbydigit(digit, nextlist, newpartitions)
+
+		self.rowpartitions[digitindex] = newpartitions
+
+		#digitmarks = [ [digit in cell.marks for cell in row] for row in self.cells]
+		#print digitmarks
+
+		return
 		
+	def partitionrowlistbydigit(self, digit, rowlist, partitions):
+		# if rowlist is length 1 or less, no need to partition further
+		if len(rowlist) <= 1:
+			partitions.append(rowlist)
+			return
+			
+		# generate all proper subsets of cell list
+		rowsubsets = propersubsets(rowlist)
+
+		# sort by subset length
+		lencmp = lambda a,b: cmp(len(a), len(b))
+		rowsubsets.sort(cmp=lencmp)
+
+		# storage for block + marks, if we find one
+		subblock = None
+		subblockcolumns = None
+
+		# look through subsets for a subblock 
+		# (number of marks = number of columns containing the given digit)
+		# since rowsubsets sorted by length, will find a minimal one
+		for sset in rowsubsets:
+			ssetcolumns = self.columnswithdigit(sset, digit)
+
+			# if we find one, save it off, break the loop
+			if (len(ssetcolumns) == len(sset)):
+				subblock = sset
+				subblockcolumns = ssetcolumns
+				break
+		else:
+			# no proper subblocks found
+			# put this block back in the list, exit
+			partitions.append(rowlist)
+			return
+
+		# put found subblock into partition list
+		partitions.append(subblock)
+		
+		# collect rows not in this subblock
+		# should never be empty
+		outerrows = [row for row in rowlist if row not in subblock]
+
+		if outerrows:
+			# remove digit from cells in other rows if they lie in the occupied columns
+			for row in outerrows:
+				for index in subblockcolumns:
+					row.cells[index].removemarks(Set([digit]))
+
+			# check for new subblocks in the outer cells
+			self.partitionrowlistbydigit(digit, outerrows, partitions)
+
+		return
+		
+	def columnswithdigit(self, rowlist, digit):
+		allmarks = [Set([]) for index in range(9)]
+		
+		for row in rowlist:
+			for index in range(9):
+				allmarks[index] |= row.cells[index].marks
+				
+		columns = []
+		
+		for index in range(9):
+			if digit in allmarks[index]:
+				columns.append(index)
+				
+		return columns
 		
 def makemarksdict(markstring):
 	marklist = list(markstring)
