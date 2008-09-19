@@ -3,28 +3,28 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>sudokucells.py</string>
+	<string>sudoku.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
 			<key>filename</key>
 			<string>sudokucells.py</string>
 			<key>lastUsed</key>
-			<date>2008-09-11T02:25:37Z</date>
-			<key>selected</key>
-			<true/>
+			<date>2008-09-11T21:31:13Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>sudokumarksets.py</string>
 			<key>lastUsed</key>
-			<date>2008-09-11T02:01:06Z</date>
+			<date>2008-09-11T21:31:17Z</date>
 		</dict>
 		<dict>
 			<key>filename</key>
 			<string>sudoku.py</string>
 			<key>lastUsed</key>
-			<date>2008-09-11T02:25:37Z</date>
+			<date>2008-09-11T21:31:17Z</date>
+			<key>selected</key>
+			<true/>
 		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
@@ -36,57 +36,57 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>66</integer>
 				<key>line</key>
-				<integer>59</integer>
+				<integer>13</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>10</integer>
+			<integer>0</integer>
 		</dict>
 		<key>sudokucells.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>3</integer>
+				<integer>25</integer>
 				<key>line</key>
-				<integer>144</integer>
+				<integer>69</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>195</integer>
+			<integer>587</integer>
 		</dict>
 		<key>sudokumarksets.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>6</integer>
+				<integer>9</integer>
 				<key>line</key>
-				<integer>236</integer>
+				<integer>320</integer>
 			</dict>
 			<key>columnSelection</key>
 			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>204</integer>
+			<integer>271</integer>
 			<key>selectFrom</key>
 			<dict>
 				<key>column</key>
 				<integer>0</integer>
 				<key>line</key>
-				<integer>236</integer>
+				<integer>320</integer>
 			</dict>
 			<key>selectTo</key>
 			<dict>
 				<key>column</key>
-				<integer>10</integer>
+				<integer>18</integer>
 				<key>line</key>
-				<integer>236</integer>
+				<integer>320</integer>
 			</dict>
 		</dict>
 	</dict>
