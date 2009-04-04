@@ -11,7 +11,7 @@ def main(argv = None):
 		
 
 	board = SudokuBoard()
-	board.changemarks(makemarksdict(sudokumarksets.hard_eastermonster))
+	board.changemarks(makemarksdict(sudokumarksets.mepham_d))
 	
 	boardchanged = True
 	boardfirstrun = True
